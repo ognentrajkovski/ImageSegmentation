@@ -34,7 +34,7 @@ def train_function(loader, model, optimizer, loss_function, scaler=None):
 
     for batch_idx, (data, targets) in enumerate(loop):
         data = data.to(device=DEVICE)
-        targets = targets.float().unsqueeze(1).to(device=DEVICE)  # for binary cross-entropy
+        targets = targets.float().unsqueeze(1).to(device=DEVICE)  # for BCEWithLogitsLoss
 
         # forward
         if USE_AMP:
@@ -86,7 +86,7 @@ def main():
     )
 
     model = UNET(in_ch=3, out_ch=1).to(DEVICE)
-    loss_function = nn.BCELoss()
+    loss_function = nn.BCEWithLogitsLoss()  # changed here
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     train_loader, val_loader = get_loaders(
