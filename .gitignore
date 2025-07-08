@@ -1,3 +1,4 @@
 data/
 saved_images/
+uploads/
 checkpoint.pth.tar
