@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>U-Net Image Segmentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+        }
+
+        h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1em;
+            margin-bottom: 30px;
+        }
+
+        .upload-area {
+            border: 3px dashed #3498db;
+            border-radius: 15px;
+            padding: 40px;
+            margin: 30px 0;
+            background: rgba(52, 152, 219, 0.05);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area:hover {
+            border-color: #2980b9;
+            background: rgba(52, 152, 219, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .upload-area.drag-over {
+            border-color: #27ae60;
+            background: rgba(46, 204, 113, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 4em;
+            color: #3498db;
+            margin-bottom: 20px;
+        }
+
+        .upload-text {
+            color: #2c3e50;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+
+        .upload-subtext {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(52, 152, 219, 0.6);
+        }
+
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn.success {
+            background: linear-gradient(45deg, #27ae60, #219a52);
+            box-shadow: 0 5px 15px rgba(39, 174, 96, 0.4);
+        }
+
+        .btn.success:hover {
+            box-shadow: 0 8px 25px rgba(39, 174, 96, 0.6);
+        }
+
+        .preview-container {
+            display: none;
+            margin: 30px 0;
+        }
+
+        .image-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .image-item {
+            text-align: center;
+        }
+
+        .image-item h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .image-item img {
+            max-width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .image-item img:hover {
+            transform: scale(1.05);
+        }
+
+        .loading {
+            display: none;
+            color: #3498db;
+            font-size: 1.1em;
+            margin: 20px 0;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #3498db;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            color: #e74c3c;
+            background: rgba(231, 76, 60, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            .image-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>U-Net Image Segmentation</h1>
+        <p class="subtitle">Upload an image to apply semantic binary segmentation using a trained U-Net model</p>
+
+        <div class="upload-area" id="upload-area">
+            <div class="upload-icon">📸</div>
+            <div class="upload-text">Click to upload or drag and drop</div>
+            <div class="upload-subtext">Supports JPG images</div>
+            <input type="file" id="file-input" accept="image/*">
+        </div>
+
+        <div class="error" id="error-message"></div>
+
+        <button class="btn" id="process-btn" disabled>🔄 Process Image</button>
+
+        <div class="loading" id="loading">Processing your image...</div>
+
+        <div class="preview-container" id="preview-container">
+            <div class="image-grid">
+                <div class="image-item">
+                    <h3>Original Image</h3>
+                    <img id="original-image" alt="Original">
+                </div>
+                <div class="image-item">
+                    <h3>Segmentation Result</h3>
+                    <img id="result-image" alt="Segmented">
+                </div>
+            </div>
+            <button class="btn success" id="download-btn">💾 Download Result</button>
+        </div>
+    </div>
+
+    <script>
+        let uploadedFile = null;
+        let resultImageData = null;
+
+        // DOM elements
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const processBtn = document.getElementById('process-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const previewContainer = document.getElementById('preview-container');
+        const originalImage = document.getElementById('original-image');
+        const resultImage = document.getElementById('result-image');
+        const loading = document.getElementById('loading');
+        const errorMessage = document.getElementById('error-message');
+
+        // Event listeners
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', handleDragOver);
+        uploadArea.addEventListener('dragleave', handleDragLeave);
+        uploadArea.addEventListener('drop', handleDrop);
+        fileInput.addEventListener('change', handleFileSelect);
+        processBtn.addEventListener('click', processImage);
+        downloadBtn.addEventListener('click', downloadResult);
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        }
+
+        function handleFileSelect(e) {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        }
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showError('Please select a valid image file (JPG, PNG)');
+                return;
+            }
+
+            if (file.size > 10 * 1024 * 1024) { // 10MB limit
+                showError('File size must be less than 10MB');
+                return;
+            }
+
+            uploadedFile = file;
+            processBtn.disabled = false;
+            hideError();
+
+            // Show preview of uploaded image
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                originalImage.src = e.target.result;
+                previewContainer.style.display = 'block';
+                resultImage.style.display = 'none';
+                downloadBtn.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+
+
+            uploadArea.innerHTML = `
+                <div class="upload-text">Image uploaded successfully!</div>
+                <div class="upload-subtext">${file.name}</div>
+            `;
+        }
+
+        async function processImage() {
+            if (!uploadedFile) return;
+
+            processBtn.disabled = true;
+            loading.style.display = 'block';
+            hideError();
+
+            try {
+
+                const processedImage = await simulateUNetProcessing(uploadedFile);
+
+
+                resultImage.src = processedImage;
+                resultImage.style.display = 'block';
+                downloadBtn.style.display = 'inline-block';
+
+
+                resultImageData = processedImage;
+
+                processBtn.textContent = 'Processing Complete';
+                processBtn.classList.add('success');
+
+            } catch (error) {
+                showError('Error processing image: ' + error.message);
+                processBtn.disabled = false;
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        async function simulateUNetProcessing(file) {
+            // Send image to Flask backend for real U-Net processing
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const response = await fetch('http://localhost:5050/segment', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Server error');
+                }
+
+                const result = await response.json();
+
+                if (result.success) {
+                    return result.result; // Base64 encoded image
+                } else {
+                    throw new Error(result.error || 'Processing failed');
+                }
+            } catch (error) {
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    throw new Error('Backend not available. Please make sure the server is running.');
+                }
+
+                throw error;
+            }
+        }
+
+        function downloadResult() {
+            if (!resultImageData) return;
+
+            const link = document.createElement('a');
+            link.download = 'segmented_result.png';
+            link.href = resultImageData;
+            link.click();
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.querySelector('.container');
+            container.style.opacity = '0';
+            container.style.transform = 'translateY(20px)';
+
+            setTimeout(() => {
+                container.style.transition = 'all 0.6s ease';
+                container.style.opacity = '1';
+                container.style.transform = 'translateY(0)';
+            }, 100);
+        });
+    </script>
+</body>
+</html>
